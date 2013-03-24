@@ -1,0 +1,8 @@
+import os
+
+env = Environment(
+    CPPFLAGS=['-g', '--std=c++0x'],
+    LIBS=['andreasmusic', 'gtest'],
+    )
+
+[env.Program('test_' + os.path.splitext(str(p))[0], p) for p in Glob('*.cpp')]

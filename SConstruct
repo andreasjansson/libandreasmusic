@@ -4,6 +4,9 @@ env = Environment(
     )
 
 #env['STATIC_AND_SHARED_OBJECTS_ARE_THE_SAME']=1 
-andreasmusic = env.SharedLibrary('andreasmusic', Glob('src/*.cpp'), SHLIBVERSION='0.1.0')
+andreasmusic = env.SharedLibrary('andreasmusic', Glob('src/*.cpp'))
 
-env.InstallVersionedLib()
+#env.InstallVersionedLib()
+
+env.Alias('install', env.Install('/usr/local/include/andreasmusic', Glob('src/*.hpp')))
+env.Alias('install', env.Install('/usr/local/lib', andreasmusic))
