@@ -13,7 +13,7 @@ namespace andreasmusic {
     tmpnam(buffer);
     std::string filename = std::string(buffer);
     std::string extension = boost::filesystem::extension(path);
-    filename += '.' + extension;
+    filename += extension;
 
     FILE *fp = fopen(filename.c_str(), "wb");
     CURL *curl = curl_easy_init();
