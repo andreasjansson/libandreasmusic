@@ -19,7 +19,7 @@ TEST(AudioTest, Mp3Mono)
   Audio audio("test_mono.mp3");
   ASSERT_EQ(1, audio.get_channels());
   ASSERT_EQ(44100, audio.get_rate());
-  ASSERT_EQ(23020, audio.get_length());
+  ASSERT_EQ(21250, audio.get_length());
 }
 
 TEST(AudioTest, Play)

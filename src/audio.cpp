@@ -6,6 +6,9 @@
 #include <stdio.h>
 #include <string>
 #include <vector>
+#include <stdexcept>
+#include <portaudio.h>
+#include <utility>
 #include "audio.hpp"
 #include "util.hpp"
 #include "exception.hpp"
@@ -45,13 +48,15 @@ namespace andreasmusic
 
   Audio::Audio(const std::string path)
   {
+    data = std::vector<AudioData>();
+
     if(boost::starts_with(path, "http://")) {
       filename = download(path);
       remote_path = path;
     }
     else {
       if(!boost::filesystem::exists(path))
-	throw new Exception(boost::str(boost::format("No such file %s") % path));
+	throw Exception(boost::str(boost::format("No such file %s") % path));
       filename = path;
       remote_path = "";
     }
@@ -66,7 +71,7 @@ namespace andreasmusic
       //read_wav();
     }
     else {
-      throw new Exception(boost::str(boost::format("Cannot create Audio object with filetype '%s'. Currently supported filetypes are '.wav' and '.mp3'.") % filetype));
+      throw Exception(boost::str(boost::format("Cannot create Audio object with filetype '%s'. Currently supported filetypes are '.wav' and '.mp3'.") % filetype));
     }
   }
 
@@ -86,30 +91,30 @@ namespace andreasmusic
 
     int err = mpg123_init();
     if(err != MPG123_OK || (mh = mpg123_new(NULL, &err)) == NULL) {
-      throw new Exception("Failed to initialise mpg123");
+      throw Exception("Failed to initialise mpg123");
     }
 
-    mpg123_param(mh, MPG123_ADD_FLAGS, MPG123_FORCE_FLOAT, 0.);
+    mpg123_param(mh, MPG123_ADD_FLAGS, MPG123_FORCE_FLOAT, 1.);
     if(mpg123_open(mh, filename.c_str()) != MPG123_OK) {
-      throw new Exception(boost::str(boost::format("mpg123 failed to open '%s'") % filename));
+      throw Exception(boost::str(boost::format("mpg123 failed to open '%s'") % filename));
     }
 
     int encoding;
     if(mpg123_getformat(mh, &rate, &channels, &encoding) != MPG123_OK) {
-      throw new Exception(boost::str(boost::format("mpg123 failed to get format from '%s'") % filename));
+      throw Exception(boost::str(boost::format("mpg123 failed to get format from '%s'") % filename));
     }
 
     // ensure format doesn't change
-    mpg123_format_none(mh);
     mpg123_format(mh, rate, channels, encoding);
+    mpg123_format_none(mh);
 
     off_t mp3_length = mpg123_length(mh);
-    data = std::vector<std::vector<float> >(channels);
     for(int i = 0; i < channels; i ++) {
-      if(mp3_length == MPG123_ERR)
-	data[i] = std::vector<float>();
-      else
-	data[i] = std::vector<float>(mp3_length);
+      AudioData channel_data;
+      if(mp3_length != MPG123_ERR) {
+	channel_data.reserve(mp3_length);
+      }
+      data.push_back(channel_data);
     }
 
     int c, i;
@@ -119,40 +124,56 @@ namespace andreasmusic
     size_t done;
 
     length = 0;
-    while((err = mpg123_read(mh, buffer, buffer_size, &done)) == MPG123_OK) {
+    do {
+      err = mpg123_read(mh, buffer, buffer_size, &done);
+
       done /= mpg123_encsize(encoding);
 
       for(i = 0; i < done; i ++) {
 	for(c = 0; c < channels; c ++) {
 	  data[c].push_back(((float *)buffer)[i]);
 	}
-	length ++;
       }
-    }
+      length += done;
+
+    } while(err == MPG123_OK);
 
     if(err != MPG123_DONE) {
       const char *error = err == MPG123_ERR ?
 	mpg123_strerror(mh) : mpg123_plain_strerror(err);
-      throw new Exception(error);
+      throw Exception(error);
     }
   }
 
-  long Audio::get_length()
+  long Audio::get_length() const
   {
     return length;
   }
 
-  long Audio::get_rate()
+  long Audio::get_rate() const
   {
     return rate;
   }
 
-  int Audio::get_channels()
+  int Audio::get_channels() const
   {
     return channels;
   }
 
-  void Audio::play()
+  AudioDataRange
+  Audio::get_data_slice(long start, long end, int channel) const
+  {
+    if(start < 0 || end < 0 || start > length || start >= end)
+      throw std::out_of_range("out of range slice");
+
+    if(end > length)
+      end = length;
+
+    return std::make_pair(data[channel].begin() + start,
+			  data[channel].begin() + end);
+  }
+
+  void Audio::play() const
   {
     Audio::Player player(this);
     player.play();
@@ -160,31 +181,32 @@ namespace andreasmusic
 
   Audio::Player::Player(const Audio *audio)
   {
-    this.audio = audio;
+    this->audio = audio;
     frames_per_buffer = 64;
+    pos = 0;
   }
 
   void Audio::Player::play()
   {
-    data_iterators = audio.get_data_iterators();
-
+    pos = 0;
+    
     PaStreamParameters output_params;
     PaStream *stream;
     PaError err;
 
-    BOOST_SCOPE_EXIT() {
+    BOOST_SCOPE_EXIT((&stream)) {
       Pa_Terminate();
-    }
+    } BOOST_SCOPE_EXIT_END
 
     err = Pa_Initialize();
     if(err != paNoError)
-      throw new Exception("Failed to initialise PortAudio");
+      throw Exception("Failed to initialise PortAudio");
 
     output_params.device = Pa_GetDefaultOutputDevice();
     if(output_params.device == paNoDevice)
-      throw new Exception("Failed to get PortAudio output device");
+      throw Exception("Failed to get PortAudio output device");
 
-    output_params.channelCount = audio.channels;
+    output_params.channelCount = audio->get_channels();
     output_params.sampleFormat = paFloat32;
     output_params.suggestedLatency =
       Pa_GetDeviceInfo(output_params.device)->defaultLowOutputLatency;
@@ -193,44 +215,56 @@ namespace andreasmusic
     err = Pa_OpenStream(&stream,
 			NULL,
 			&output_params,
-			audio.rate,
+			audio->rate,
 			frames_per_buffer,
 			paClipOff,
-			Audio::Player::callback,
-			NULL);
+			audio_player_callback,
+			this);
     if(err != paNoError)
-      throw new Exception("Failed to open PortAudio output stream");
+      throw Exception("Failed to open PortAudio output stream");
 
     err = Pa_StartStream(stream);
     if(err != paNoError)
-      throw new Exception("Failed to start PortAudio stream");
+      throw Exception("Failed to start PortAudio stream");
 
-    Pa_Sleep(audio.get_length());
+    Pa_Sleep(1000. * audio->get_length() / audio->get_rate());
 
     err = Pa_StopStream(stream);
     if(err != paNoError)
-      throw new Exception("Failed to stop PortAudio stream");
+      throw Exception("Failed to stop PortAudio stream");
 
     err = Pa_CloseStream(stream);
     if(err != paNoError)
-      throw new Exception("Failed to close PortAudio stream");
+      throw Exception("Failed to close PortAudio stream");
   }
 
-  int Audio::Player callback(const void *input_buffer, void *output_buffer,
-                             unsigned long frames_per_buffer,
-                             const PaStreamCallbackTimeInfo* time_info,
-                             PaStreamCallbackFlags status_flags,
-                             void *user_data)
+  int audio_player_callback(const void *input_buffer, void *output_buffer,
+			    unsigned long frames_per_buffer,
+			    const PaStreamCallbackTimeInfo* time_info,
+			    PaStreamCallbackFlags status_flags,
+			    void *user_data)
   {
-    int i, c;
-    int channels = audio.get_channels;
-    for(i = 0; i < frames_per_buffer, i ++) {
+    Audio::Player *player = static_cast<Audio::Player *>(user_data);
+    float *out = static_cast<float *>(output_buffer);
+    int channels = player->audio->get_channels();
+    std::vector<AudioDataRange> slices;
+
+    int c;
+    long i;
+    for(i = 0; i < channels; i ++)
+      slices.push_back(player->audio->get_data_slice
+		       (player->pos, player->pos + frames_per_buffer));
+    
+    for(i = 0; i < frames_per_buffer; i ++) {
       for(c = 0; c < channels; c ++) {
-	// TODO: a nice way to iterate through audio.data, for each
-	// channel. reference here: http://www.portaudio.com/docs/v19-doxydocs/paex__sine_8c_source.html
-	*out++ = *data_iterators[c];
-	data_iterators[c] ++;
+	*out++ = *(slices[c].first);
+	slices[c].first ++;
+	player->pos ++;
+	if(player->pos == player->audio->length)
+	  return paComplete;
       }
     }
+
+    return paContinue;
   }
 }

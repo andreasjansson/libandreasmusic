@@ -26,7 +26,7 @@ namespace andreasmusic {
     fclose(fp);
 
     if(res != CURLE_OK)
-      throw new Exception(boost::str(boost::format("Failed to download '%s': %s") % path % curl_easy_strerror(res)));
+      throw Exception(boost::str(boost::format("Failed to download '%s': %s") % path % curl_easy_strerror(res)));
 
     return filename;
   }

@@ -1,6 +1,6 @@
 env = Environment(
     CPPFLAGS=['-g', '--std=c++0x'],
-    LIBS=['boost_filesystem', 'mpg123', 'curl'],
+    LIBS=['boost_filesystem', 'mpg123', 'curl', 'portaudio'],
     )
 
 #env['STATIC_AND_SHARED_OBJECTS_ARE_THE_SAME']=1 
