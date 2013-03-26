@@ -6,9 +6,6 @@
 
 using namespace andreasmusic;
 
-#define TRY try {
-#define CATCH } catch(Exception e) { std::cout << e.what() << std::endl; FAIL(); }
-
 TEST(AudioTest, EmptyConstructor) {
   Audio audio;
   ASSERT_EQ(0, audio.get_length());
@@ -20,6 +17,13 @@ TEST(AudioTest, Mp3Mono)
   ASSERT_EQ(1, audio.get_channels());
   ASSERT_EQ(44100, audio.get_rate());
   ASSERT_EQ(21250, audio.get_length());
+}
+
+TEST(AudioTest, RemoteMp3)
+{
+  Audio audio("http://www.pdsounds.org/audio/download/209/bip.mp3");
+  printf("channels: %d, rate: %d, length: %d\n", audio.get_channels(), audio.get_rate(), audio.get_length());
+  audio.play();
 }
 
 TEST(AudioTest, Play)

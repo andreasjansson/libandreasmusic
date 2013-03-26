@@ -42,8 +42,11 @@ namespace andreasmusic
       //delete channel_data;
     }
 
-    if(remote_path != "")
+    printf("----------> filename: %s\n", filename.c_str());
+    /*
+      if(remote_path != "")
       remove(filename.c_str());
+    */
   }
 
   Audio::Audio(const std::string path)
@@ -56,7 +59,7 @@ namespace andreasmusic
     }
     else {
       if(!boost::filesystem::exists(path))
-	throw Exception(boost::str(boost::format("No such file %s") % path));
+        throw Exception(boost::str(boost::format("No such file %s") % path));
       filename = path;
       remote_path = "";
     }
@@ -82,14 +85,14 @@ namespace andreasmusic
     BOOST_SCOPE_EXIT((&mh)) {
       printf("boost scope exit\n");
       if(mh) {
-	printf("closing mpg123\n");
-	mpg123_close(mh);
-	mpg123_delete(mh);
-	mpg123_exit();
+        printf("closing mpg123\n");
+        mpg123_close(mh);
+        mpg123_delete(mh);
+        mpg123_exit();
       }
     } BOOST_SCOPE_EXIT_END
 
-    int err = mpg123_init();
+        int err = mpg123_init();
     if(err != MPG123_OK || (mh = mpg123_new(NULL, &err)) == NULL) {
       throw Exception("Failed to initialise mpg123");
     }
@@ -112,7 +115,7 @@ namespace andreasmusic
     for(int i = 0; i < channels; i ++) {
       AudioData channel_data;
       if(mp3_length != MPG123_ERR) {
-	channel_data.reserve(mp3_length);
+        channel_data.reserve(mp3_length);
       }
       data.push_back(channel_data);
     }
@@ -130,9 +133,9 @@ namespace andreasmusic
       done /= mpg123_encsize(encoding);
 
       for(i = 0; i < done; i ++) {
-	for(c = 0; c < channels; c ++) {
-	  data[c].push_back(((float *)buffer)[i]);
-	}
+        for(c = 0; c < channels; c ++) {
+          data[c].push_back(((float *)buffer)[i]);
+        }
       }
       length += done;
 
@@ -140,7 +143,7 @@ namespace andreasmusic
 
     if(err != MPG123_DONE) {
       const char *error = err == MPG123_ERR ?
-	mpg123_strerror(mh) : mpg123_plain_strerror(err);
+        mpg123_strerror(mh) : mpg123_plain_strerror(err);
       throw Exception(error);
     }
   }
@@ -170,7 +173,7 @@ namespace andreasmusic
       end = length;
 
     return std::make_pair(data[channel].begin() + start,
-			  data[channel].begin() + end);
+                          data[channel].begin() + end);
   }
 
   void Audio::play() const
@@ -198,7 +201,7 @@ namespace andreasmusic
       Pa_Terminate();
     } BOOST_SCOPE_EXIT_END
 
-    err = Pa_Initialize();
+        err = Pa_Initialize();
     if(err != paNoError)
       throw Exception("Failed to initialise PortAudio");
 
@@ -213,13 +216,13 @@ namespace andreasmusic
     output_params.hostApiSpecificStreamInfo = NULL;
 
     err = Pa_OpenStream(&stream,
-			NULL,
-			&output_params,
-			audio->rate,
-			frames_per_buffer,
-			paClipOff,
-			audio_player_callback,
-			this);
+                        NULL,
+                        &output_params,
+                        audio->rate,
+                        frames_per_buffer,
+                        paClipOff,
+                        audio_player_callback,
+                        this);
     if(err != paNoError)
       throw Exception("Failed to open PortAudio output stream");
 
@@ -239,10 +242,10 @@ namespace andreasmusic
   }
 
   int audio_player_callback(const void *input_buffer, void *output_buffer,
-			    unsigned long frames_per_buffer,
-			    const PaStreamCallbackTimeInfo* time_info,
-			    PaStreamCallbackFlags status_flags,
-			    void *user_data)
+                            unsigned long frames_per_buffer,
+                            const PaStreamCallbackTimeInfo* time_info,
+                            PaStreamCallbackFlags status_flags,
+                            void *user_data)
   {
     Audio::Player *player = static_cast<Audio::Player *>(user_data);
     float *out = static_cast<float *>(output_buffer);
@@ -253,15 +256,15 @@ namespace andreasmusic
     long i;
     for(i = 0; i < channels; i ++)
       slices.push_back(player->audio->get_data_slice
-		       (player->pos, player->pos + frames_per_buffer));
+                       (player->pos, player->pos + frames_per_buffer));
     
     for(i = 0; i < frames_per_buffer; i ++) {
       for(c = 0; c < channels; c ++) {
-	*out++ = *(slices[c].first);
-	slices[c].first ++;
-	player->pos ++;
-	if(player->pos == player->audio->length)
-	  return paComplete;
+        *out++ = *(slices[c].first);
+        slices[c].first ++;
+        player->pos ++;
+        if(player->pos == player->audio->length)
+          return paComplete;
       }
     }
 
