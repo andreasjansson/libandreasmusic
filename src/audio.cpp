@@ -92,12 +92,12 @@ namespace andreasmusic
       }
     } BOOST_SCOPE_EXIT_END
 
-        int err = mpg123_init();
+    int err = mpg123_init();
     if(err != MPG123_OK || (mh = mpg123_new(NULL, &err)) == NULL) {
       throw Exception("Failed to initialise mpg123");
     }
 
-    mpg123_param(mh, MPG123_ADD_FLAGS, MPG123_FORCE_FLOAT, 1.);
+    mpg123_param(mh, MPG123_ADD_FLAGS, MPG123_FORCE_FLOAT, 0.);
     if(mpg123_open(mh, filename.c_str()) != MPG123_OK) {
       throw Exception(boost::str(boost::format("mpg123 failed to open '%s'") % filename));
     }
@@ -108,7 +108,7 @@ namespace andreasmusic
     }
 
     // ensure format doesn't change
-    mpg123_format(mh, rate, channels, encoding);
+    //mpg123_format(mh, rate, channels, encoding);
     mpg123_format_none(mh);
 
     off_t mp3_length = mpg123_length(mh);
@@ -130,11 +130,11 @@ namespace andreasmusic
     do {
       err = mpg123_read(mh, buffer, buffer_size, &done);
 
-      done /= mpg123_encsize(encoding);
+      done /= mpg123_encsize(encoding) * channels;
 
       for(i = 0; i < done; i ++) {
         for(c = 0; c < channels; c ++) {
-          data[c].push_back(((float *)buffer)[i]);
+          data[c].push_back(((float *)buffer)[i * channels + c]);
         }
       }
       length += done;
@@ -201,7 +201,7 @@ namespace andreasmusic
       Pa_Terminate();
     } BOOST_SCOPE_EXIT_END
 
-        err = Pa_Initialize();
+    err = Pa_Initialize();
     if(err != paNoError)
       throw Exception("Failed to initialise PortAudio");
 
@@ -262,10 +262,10 @@ namespace andreasmusic
       for(c = 0; c < channels; c ++) {
         *out++ = *(slices[c].first);
         slices[c].first ++;
-        player->pos ++;
         if(player->pos == player->audio->length)
           return paComplete;
       }
+      player->pos ++;
     }
 
     return paContinue;
