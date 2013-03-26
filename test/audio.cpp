@@ -27,11 +27,13 @@ TEST(AudioTest, RemoteMp3)
   ASSERT_EQ(25967, audio.get_length());
 }
 
+/*
 TEST(AudioTest, Play)
 {
   Audio audio("test_mono.mp3");
   audio.play();
 }
+*/
 
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);

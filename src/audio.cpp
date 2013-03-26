@@ -42,11 +42,8 @@ namespace andreasmusic
       //delete channel_data;
     }
 
-    printf("----------> filename: %s\n", filename.c_str());
-    /*
-      if(remote_path != "")
+    if(remote_path != "")
       remove(filename.c_str());
-    */
   }
 
   Audio::Audio(const std::string path)
@@ -83,9 +80,7 @@ namespace andreasmusic
     mpg123_handle *mh = NULL;
 
     BOOST_SCOPE_EXIT((&mh)) {
-      printf("boost scope exit\n");
       if(mh) {
-        printf("closing mpg123\n");
         mpg123_close(mh);
         mpg123_delete(mh);
         mpg123_exit();
